@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ระบบตัดคะแนนความประพฤตินักเรียน</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+    .sidebar-active { background-color: #FCE7F3; color: #DB2777; font-weight: bold; border-radius: 0.75rem; }
+    
+    /* ควบคุมการจัดโครงสร้างระหว่างการสั่งพิมพ์ / เซฟเป็น PDF */
+    @media print {
+      .no-print { display: none !important; }
+      #pdfPrintSection { display: block !important; position: absolute; left: 0; top: 0; width: 100%; text-align: left; }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-tr from-pink-50 to-blue-50 min-h-screen">
+
+  <div id="loading" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">
+    <div class="bg-white p-5 rounded-xl shadow-xl flex items-center space-x-3">
+      <div class="animate-spin rounded-full h-8 w-8 border-4 border-pink-500 border-t-transparent"></div>
+      <span class="text-gray-700 font-semibold">กำลังประมวลผลข้อมูล...</span>
+    </div>
+  </div>
+
+  <div class="no-print">
+    <div id="view-login-teacher" class="flex min-h-screen items-center justify-center px-4">
+      <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-gray-100 text-center">
+        <h1 class="text-2xl font-bold text-slate-800 mb-2">ระบบตัดคะแนนความประพฤติ</h1>
+        <p class="text-sm text-gray-500 mb-6">กรุณาเข้าสู่ระบบเพื่อจัดการข้อมูล</p>
+        <h2 class="text-xl font-bold text-pink-600 mb-6">เข้าสู่ระบบ (ครู)</h2>
+        <div class="text-left space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ใช้</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-user"></i></span>
+              <input type="text" id="teacher-username" placeholder="ระบุชื่อผู้ใช้" class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-lock"></i></span>
+              <input type="password" id="teacher-password" placeholder="ระบุรหัสผ่าน" class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400">
+            </div>
+          </div>
+          <button onclick="handleTeacherLogin()" class="w-full bg-pink-200 text-pink-700 hover:bg-pink-300 font-bold py-3 rounded-xl transition duration-200 shadow-sm mt-2">เข้าสู่ระบบ</button>
+          <div class="text-center mt-4">
+            <button onclick="switchView('view-login-student')" class="text-blue-600 hover:underline text-sm">เข้าสู่ระบบสำหรับนักเรียน</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-login-student" class="flex min-h-screen items-center justify-center px-4 hidden">
+      <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-gray-100 text-center">
+        <h1 class="text-2xl font-bold text-slate-800 mb-2">ระบบตัดคะแนนความประพฤติ</h1>
+        <p class="text-sm text-gray-500 mb-6">นักเรียนกรุณาใส่รหัสเพื่อดูข้อมูล</p>
+        <h2 class="text-xl font-bold text-pink-600 mb-6">เข้าสู่ระบบ (นักเรียน)</h2>
+        <div class="text-left space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">รหัสนักเรียน</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-id-card"></i></span>
+              <input type="text" id="student-login-id" placeholder="ระบุรหัสนักเรียน" class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400">
+            </div>
+          </div>
+          <button onclick="handleStudentLogin()" class="w-full bg-pink-200 text-pink-700 hover:bg-pink-300 font-bold py-3 rounded-xl transition duration-200 shadow-sm mt-2">เข้าสู่ระบบ</button>
+          <div class="text-center mt-4">
+            <button onclick="switchView('view-login-teacher')" class="text-blue-600 hover:underline text-sm">กลับไปที่ระบบครู</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="main-app" class="flex min-h-screen hidden">
+      <aside class="w-64 bg-white shadow-md flex flex-col justify-between p-4">
+        <div>
+          <div class="p-2 mb-6">
+            <h2 class="text-lg font-bold text-gray-800 leading-tight">ระบบตัดคะแนนความประพฤติ</h2>
+            <div class="h-1 w-16 bg-pink-400 rounded mt-1"></div>
+          </div>
+          <nav class="space-y-1">
+            <button onclick="loadDashboard()" id="menu-dashboard" class="w-full flex items-center space-x-3 px-4 py-3 text-gray-600 sidebar-active"><i class="fa-solid fa-chart-pie w-5"></i><span>แดชบอร์ด</span></button>
+            <button onclick="loadBehaviors()" id="menu-behaviors" class="w-full flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl"><i class="fa-solid fa-circle-exclamation w-5"></i><span>จัดการพฤติกรรม</span></button>
+            <button onclick="loadClasses()" id="menu-classes" class="w-full flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl"><i class="fa-solid fa-bars w-5"></i><span>จัดการชั้นเรียน</span></button>
+            <button onclick="loadStudents()" id="menu-students" class="w-full flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl"><i class="fa-solid fa-user-graduate w-5"></i><span>จัดการนักเรียน</span></button>
+            <button onclick="loadRecordBehavior()" id="menu-record" class="w-full flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl"><i class="fa-solid fa-minus-circle w-5"></i><span>บันทึกพฤติกรรม</span></button>
+            <button onclick="loadReports()" id="menu-reports" class="w-full flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl"><i class="fa-solid fa-file-invoice w-5"></i><span>รายงานนักเรียน</span></button>
+          </nav>
+        </div>
+        <div class="pt-4 border-t border-gray-100 flex items-center justify-between text-sm">
+          <span class="text-gray-600" id="user-display-name">ครู: admin</span>
+          <button onclick="logout()" class="bg-pink-100 text-pink-600 font-semibold px-2.5 py-1 rounded-lg hover:bg-pink-200">ออกจากระบบ</button>
+        </div>
+      </aside>
+
+      <main class="flex-1 p-8 overflow-y-auto">
+        <div id="sub-dashboard" class="space-y-6">
+          <h2 class="text-2xl font-bold text-gray-800">แดชบอร์ด</h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm flex items-center space-x-4 border border-gray-100">
+              <div class="p-3 bg-red-100 text-red-500 rounded-full"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+              <div>
+                <p class="text-xs text-gray-400">พฤติกรรมที่ถูกรายงานสูงสุด</p>
+                <h3 class="text-lg font-bold text-gray-700" id="dash-top-behavior">กำลังโหลด...</h3>
+              </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm flex items-center space-x-4 border border-gray-100">
+              <div class="p-3 bg-blue-100 text-blue-500 rounded-full"><i class="fa-solid fa-user-minus text-xl"></i></div>
+              <div>
+                <p class="text-xs text-gray-400">นักเรียนที่มีคะแนนต่ำสุด</p>
+                <h3 class="text-lg font-bold text-gray-700" id="dash-lowest-student">กำลังโหลด...</h3>
+              </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm flex items-center space-x-4 border border-gray-100">
+              <div class="p-3 bg-pink-100 text-pink-500 rounded-full"><i class="fa-solid fa-calendar-check text-xl"></i></div>
+              <div>
+                <p class="text-xs text-gray-400">รายงานทั้งหมด (เดือนนี้)</p>
+                <h3 class="text-xl font-bold text-gray-700" id="dash-total-month">0</h3>
+              </div>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <h4 class="font-bold text-gray-700 mb-4">สถิติพฤติกรรมที่พบบ่อย</h4>
+              <canvas id="chartBehaviors" class="w-full h-64"></canvas>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <h4 class="font-bold text-gray-700 mb-4">คะแนนเฉลี่ยตามระดับชั้น</h4>
+              <div class="w-64 mx-auto"><canvas id="chartClasses"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sub-behaviors" class="space-y-4 hidden">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-800">จัดการพฤติกรรม</h2>
+            <button onclick="openBehaviorModal()" class="bg-pink-200 text-pink-700 px-4 py-2 rounded-xl font-semibold hover:bg-pink-300"><i class="fa-solid fa-plus mr-1"></i> เพิ่มพฤติกรรม</button>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100 text-gray-600 font-semibold text-sm">
+                  <th class="p-4 w-20">ลำดับ</th>
+                  <th class="p-4">ชื่อพฤติกรรม</th>
+                  <th class="p-4 w-32">คะแนน</th>
+                  <th class="p-4 w-32 text-center">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="table-behaviors-body" class="text-gray-700 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="sub-classes" class="space-y-4 hidden">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-800">จัดการชั้นเรียน</h2>
+            <button onclick="openClassModal()" class="bg-pink-200 text-pink-700 px-4 py-2 rounded-xl font-semibold hover:bg-pink-300"><i class="fa-solid fa-plus mr-1"></i> เพิ่มชั้นเรียน</button>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100 text-gray-600 font-semibold text-sm">
+                  <th class="p-4 w-20">ลำดับ</th>
+                  <th class="p-4">ชื่อชั้นเรียน</th>
+                  <th class="p-4 w-32 text-center">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="table-classes-body" class="text-gray-700 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="sub-students" class="space-y-4 hidden">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <h2 class="text-2xl font-bold text-gray-800">จัดการนักเรียน</h2>
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="openStudentModal()" class="bg-pink-200 text-pink-700 px-4 py-2 rounded-xl font-semibold hover:bg-pink-300"><i class="fa-solid fa-plus mr-1"></i> เพิ่มนักเรียน</button>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100 text-gray-600 font-semibold text-sm">
+                  <th class="p-4 w-20">ลำดับ</th>
+                  <th class="p-4 w-32">รหัสนักเรียน</th>
+                  <th class="p-4">ชื่อ-นามสกุล</th>
+                  <th class="p-4 w-48">ชั้นเรียน</th>
+                  <th class="p-4 w-32 text-center">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="table-students-body" class="text-gray-700 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="sub-record" class="space-y-4 hidden">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-800">บันทึกพฤติกรรม</h2>
+            <div>
+              <select id="filter-record-class" onchange="renderRecordTable()" class="border border-gray-200 p-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400"></select>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100 text-gray-600 font-semibold text-sm">
+                  <th class="p-4 w-20">ลำดับ</th>
+                  <th class="p-4 w-32">รหัสนักเรียน</th>
+                  <th class="p-4">ชื่อ-นามสกุล (คลิกเพื่อดูประวัติ)</th>
+                  <th class="p-4 w-48">ชั้นเรียน</th>
+                  <th class="p-4 w-32 text-center">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="table-record-body" class="text-gray-700 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="sub-reports" class="space-y-4 hidden">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-800">รายงานนักเรียน</h2>
+            <button onclick="window.print()" class="bg-purple-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-purple-700 shadow-sm text-sm"><i class="fa-solid fa-print mr-1"></i> พิมพ์รายงานทั้งหมด</button>
+          </div>
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" id="search-report-name" oninput="renderReportTable()" placeholder="พิมพ์ชื่อ หรือ รหัสนักเรียน..." class="border border-gray-200 p-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400">
+            <select id="filter-report-class" onchange="renderReportTable()" class="border border-gray-200 p-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400"></select>
+            <select id="filter-report-status" onchange="renderReportTable()" class="border border-gray-200 p-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400">
+              <option value="ทั้งหมด">ทั้งหมด</option>
+              <option value="ปกติ">ปกติ</option>
+              <option value="น่าห่วง">น่าห่วง</option>
+            </select>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100 text-gray-600 font-semibold text-sm">
+                  <th class="p-4 w-16">ลำดับ</th>
+                  <th class="p-4 w-24">รหัสนักเรียน</th>
+                  <th class="p-4">ชื่อ-นามสกุล</th>
+                  <th class="p-4">ชั้น</th>
+                  <th class="p-4">คะแนนเริ่ม</th>
+                  <th class="p-4">คะแนนที่ตัด</th>
+                  <th class="p-4">คะแนนคงเหลือ</th>
+                  <th class="p-4">วันที่ผิดล่าสุด</th>
+                  <th class="p-4 w-24 text-center">สถานะ</th>
+                  <th class="p-4 w-20 text-center">ออกเอกสาร</th>
+                </tr>
+              </thead>
+              <tbody id="table-reports-body" class="text-gray-700 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="student-portal" class="min-h-screen p-8 hidden max-w-4xl mx-auto space-y-6">
+      <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-gray-800">ข้อมูลคะแนนความประพฤติ</h2>
+        <button onclick="logout()" class="bg-pink-100 text-pink-600 font-bold px-4 py-2 rounded-xl hover:bg-pink-200">ออกจากระบบ</button>
+      </div>
+      <div class="bg-white p-6 rounded-3xl shadow-md border border-gray-100 space-y-2">
+        <h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">ข้อมูลนักเรียน</h3>
+        <p class="text-sm"><strong>รหัสนักเรียน:</strong> <span id="st-portal-id"></span></p>
+        <p class="text-sm"><strong>ชื่อ:</strong> <span id="st-portal-name"></span></p>
+        <p class="text-sm"><strong>ชั้น:</strong> <span id="st-portal-class"></span></p>
+        <div class="grid grid-cols-3 gap-4 pt-4 text-center">
+          <div class="bg-gray-50 p-3 rounded-xl"><p class="text-xs text-gray-400">คะแนนเริ่มต้น</p><p class="text-lg font-bold text-gray-700">100</p></div>
+          <div class="bg-red-50 p-3 rounded-xl"><p class="text-xs text-red-400">คะแนนที่ถูกตัด</p><p class="text-lg font-bold text-red-600" id="st-portal-deducted">0</p></div>
+          <div class="bg-green-50 p-3 rounded-xl"><p class="text-xs text-green-400">คะแนนคงเหลือ</p><p class="text-lg font-bold text-green-600" id="st-portal-remaining">100</p></div>
+        </div>
+      </div>
+      <div class="bg-white rounded-3xl shadow-md overflow-hidden border border-gray-100">
+        <div class="p-4 bg-gray-50 border-b border-gray-100"><h4 class="font-bold text-gray-700">ประวัติการกระทำผิด</h4></div>
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-semibold text-xs uppercase tracking-wider">
+              <th class="p-4 w-16">ลำดับ</th>
+              <th class="p-4">วันที่</th>
+              <th class="p-4">พฤติกรรม</th>
+              <th class="p-4 text-red-500">คะแนนที่ตัด</th>
+            </tr>
+          </thead>
+          <tbody id="table-student-logs-body" class="text-gray-700 text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="pdfPrintSection" class="hidden p-12 bg-white text-black font-sans leading-relaxed">
+    <div class="text-center mb-8">
+      <h1 class="text-2xl font-bold mb-1">รายงานสรุปผลคะแนนและพฤติกรรมความประพฤตินักเรียน</h1>
+      <p class="text-xs text-gray-500">เอกสารสรุปผลคะแนนความประพฤติรายบุคคล ฝ่ายกิจการนักเรียน</p>
+    </div>
+    <div class="grid grid-cols-2 gap-y-3 border-y border-gray-400 py-4 mb-6 text-sm">
+      <div><strong>ชื่อ-นามสกุลนักเรียน:</strong> <span id="pdfName" class="underline font-semibold">-</span></div>
+      <div><strong>รหัสประจำตัวนักเรียน:</strong> <span id="pdfId" class="underline font-semibold">-</span></div>
+      <div><strong>ระดับชั้นเรียน:</strong> <span id="pdfClass" class="underline font-semibold">-</span></div>
+      <div><strong>สถานะพฤติกรรม:</strong> <span id="pdfStatus" class="font-semibold">-</span></div>
+      <div><strong>คะแนนความประพฤติตั้งต้น:</strong> 100 คะแนน</div>
+      <div><strong>คะแนนสะสมคงเหลือล่าสุด:</strong> <span id="pdfRemaining" class="font-bold text-xl underline">-</span> คะแนน</div>
+    </div>
+    <h3 class="text-sm font-bold mb-2">📊 ตารางบันทึกประวัติการตัดคะแนนพฤติกรรม</h3>
+    <table class="w-full text-xs text-left border-collapse border border-gray-400 mb-12">
+      <thead>
+        <tr class="bg-gray-100 text-center">
+          <th class="border border-gray-400 p-2 w-12">ลำดับ</th>
+          <th class="border border-gray-400 p-2 w-40">วัน-เวลาที่ทำรายการ</th>
+          <th class="border border-gray-400 p-2 text-left">พฤติกรรม/ข้อหาที่กระทำความผิด</th>
+          <th class="border border-gray-400 p-2 w-24 text-red-600">คะแนนที่หัก</th>
+        </tr>
+      </thead>
+      <tbody id="pdfLogTableBody"></tbody>
+    </table>
+    
+    <div class="mt-16 space-y-16 text-sm">
+      <div class="flex justify-between items-center text-center">
+        <div class="w-[45%]">
+          <p>ลงชื่อ.......................................................... นักเรียน</p>
+          <p class="mt-1">(..........................................................)</p>
+          <p class="mt-1 text-xs text-gray-500">วันที่ .........../......................./...........</p>
+        </div>
+        <div class="w-[45%]">
+          <p>ลงชื่อ.......................................................... ครูที่ตัดคะแนน</p>
+          <p class="mt-1">(..........................................................)</p>
+          <p class="mt-1 text-xs text-gray-500">วันที่ .........../......................./...........</p>
+        </div>
+      </div>
+      <div class="flex justify-between items-center text-center">
+        <div class="w-[45%]">
+          <p>ลงชื่อ.......................................................... ครูที่ปรึกษา</p>
+          <p class="mt-1">(..........................................................)</p>
+          <p class="mt-1 text-xs text-gray-500">วันที่ .........../......................./...........</p>
+        </div>
+        <div class="w-[45%]">
+          <p>ลงชื่อ.......................................................... หัวหน้าฝ่ายกิจการนักเรียน</p>
+          <p class="mt-1">(..........................................................)</p>
+          <p class="mt-1 text-xs text-gray-500">วันที่ .........../......................./...........</p>
+        </div>
+      </div>
+      <div class="flex justify-center items-center text-center">
+        <div class="w-[45%]">
+          <p>ลงชื่อ.......................................................... ผู้อำนวยการโรงเรียน</p>
+          <p class="mt-1">(..........................................................)</p>
+          <p class="mt-1 text-xs text-gray-500">วันที่ .........../......................./...........</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-behavior" class="fixed inset-0 bg-black/50 z-40 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md space-y-4">
+      <h3 class="text-lg font-bold text-gray-800" id="modal-behavior-title">เพิ่มพฤติกรรม</h3>
+      <input type="hidden" id="modal-behavior-id">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อพฤติกรรม</label>
+        <input type="text" id="modal-behavior-name" class="w-full border border-gray-200 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">คะแนนหัก</label>
+        <input type="number" id="modal-behavior-points" class="w-full border border-gray-200 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400">
+      </div>
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeBehaviorModal()" class="px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">ยกเลิก</button>
+        <button onclick="submitBehavior()" class="px-4 py-2 bg-pink-500 text-white rounded-xl hover:bg-pink-600">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-class" class="fixed inset-0 bg-black/50 z-40 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md space-y-4">
+      <h3 class="text-lg font-bold text-gray-800" id="modal-class-title">เพิ่มชั้นเรียน</h3>
+      <input type="hidden" id="modal-class-id">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อชั้นเรียน</label>
+        <input type="text" id="modal-class-name" class="w-full border border-gray-200 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400">
+      </div>
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeClassModal()" class="px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">ยกเลิก</button>
+        <button onclick="submitClass()" class="px-4 py-2 bg-pink-500 text-white rounded-xl hover:bg-pink-600">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-student" class="fixed inset-0 bg-black/50 z-40 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md space-y-4">
+      <h3 class="text-lg font-bold text-gray-800" id="modal-student-title">เพิ่มนักเรียน</h3>
+      <input type="hidden" id="modal-student-is-edit" value="false">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">รหัสนักเรียน</label>
+        <input type="text" id="modal-student-id" class="w-full border border-gray-200 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล</label>
+        <input type="text" id="modal-student-name" class="w-full border border-gray-200 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">ชั้นเรียน</label>
+        <select id="modal-student-class" class="w-full border border-gray-200 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400"></select>
+      </div>
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeStudentModal()" class="px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">ยกเลิก</button>
+        <button onclick="submitStudent()" class="px-4 py-2 bg-pink-500 text-white rounded-xl hover:bg-pink-600">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-cut-points" class="fixed inset-0 bg-black/50 z-40 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md space-y-4">
+      <h3 class="text-lg font-bold text-gray-800">บันทึกการตัดคะแนนความประพฤติ</h3>
+      <p class="text-sm text-gray-500">นักเรียน: <span id="cut-student-display" class="font-bold text-gray-800"></span></p>
+      <input type="hidden" id="cut-student-id">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">เลือกพฤติกรรมที่ทำความผิด</label>
+        <select id="cut-behavior-select" class="w-full border border-gray-200 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400"></select>
+      </div>
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeCutPointsModal()" class="px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">ยกเลิก</button>
+        <button onclick="submitCutPoints()" class="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600">ยืนยันการหักคะแนน</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-history" class="fixed inset-0 bg-black/50 z-40 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-2xl space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="text-lg font-bold text-gray-800">ประวัติความประพฤติรายบุคคล</h3>
+        <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <p class="text-sm font-semibold" id="history-student-info"></p>
+      <div class="max-h-60 overflow-y-auto border rounded-xl">
+        <table class="w-full text-left">
+          <thead class="bg-gray-50 text-xs">
+            <tr>
+              <th class="p-3">วันที่</th>
+              <th class="p-3">พฤติกรรม</th>
+              <th class="p-3 text-red-500">คะแนนที่ตัด</th>
+            </tr>
+          </thead>
+          <tbody id="table-history-body" class="text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let cache = { behaviors: [], classes: [], students: [], reports: [] };
+    let chart1Instance = null;
+    let chart2Instance = null;
+
+    function showLoading() { document.getElementById('loading').classList.remove('hidden'); }
+    function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
+    function errorHandler(err) { hideLoading(); alert("เกิดข้อผิดพลาด: " + err.toString()); }
+
+    function switchView(viewId) {
+      ['view-login-teacher', 'view-login-student', 'main-app', 'student-portal'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+      document.getElementById(viewId).classList.remove('hidden');
+    }
+
+    function switchSubView(subId, menuId) {
+      ['sub-dashboard', 'sub-behaviors', 'sub-classes', 'sub-students', 'sub-record', 'sub-reports'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+      document.getElementById(subId).classList.remove('hidden');
+      
+      ['menu-dashboard', 'menu-behaviors', 'menu-classes', 'menu-students', 'menu-record', 'menu-reports'].forEach(id => {
+        document.getElementById(id).className = "w-full flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl";
+      });
+      document.getElementById(menuId).className = "w-full flex items-center space-x-3 px-4 py-3 sidebar-active";
+    }
+
+    function handleTeacherLogin() {
+      const u = document.getElementById('teacher-username').value;
+      const p = document.getElementById('teacher-password').value;
+      if(!u || !p) return alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(res => {
+          hideLoading();
+          if(res.success) {
+            document.getElementById('user-display-name').innerText = "ครู: " + res.name;
+            switchView('main-app');
+            loadDashboard();
+          } else { alert(res.message); }
+        })
+        .withFailureHandler(errorHandler)
+        .loginTeacher(u, p);
+    }
+
+    function handleStudentLogin() {
+      const id = document.getElementById('student-login-id').value;
+      if(!id) return alert('กรุณากรอกรหัสนักเรียน');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(res => {
+          hideLoading();
+          if(res.success) {
+            document.getElementById('st-portal-id').innerText = res.studentId;
+            document.getElementById('st-portal-name').innerText = res.name;
+            document.getElementById('st-portal-class').innerText = res.className;
+            switchView('student-portal');
+            loadStudentPortalLogs(res.studentId);
+          } else { alert(res.message); }
+        })
+        .withFailureHandler(errorHandler)
+        .loginStudent(id);
+    }
+
+    function loadStudentPortalLogs(stId) {
+      google.script.run.withSuccessHandler(logs => {
+        let html = '';
+        let totalDeducted = 0;
+        logs.forEach((log, i) => {
+          totalDeducted += Number(log[3]);
+          html += `<tr class="border-b">
+            <td class="p-4">${i+1}</td>
+            <td class="p-4">${log[4]}</td>
+            <td class="p-4">${log[2]}</td>
+            <td class="p-4 text-red-500 font-bold">-${log[3]}</td>
+          </tr>`;
+        });
+        document.getElementById('table-student-logs-body').innerHTML = html || '<tr><td colspan="4" class="text-center p-4 text-gray-400">ไม่มีประวัติการทำความผิด พฤติกรรมยอดเยี่ยม!</td></tr>';
+        document.getElementById('st-portal-deducted').innerText = totalDeducted;
+        document.getElementById('st-portal-remaining').innerText = 100 - totalDeducted;
+      }).getStudentLogs(stId);
+    }
+
+    function logout() {
+      document.getElementById('teacher-username').value = "";
+      document.getElementById('teacher-password').value = "";
+      document.getElementById('student-login-id').value = "";
+      switchView('view-login-teacher');
+    }
+
+    function loadDashboard() {
+      switchSubView('sub-dashboard', 'menu-dashboard');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(data => {
+          hideLoading();
+          document.getElementById('dash-top-behavior').innerText = data.topBehavior;
+          document.getElementById('dash-lowest-student').innerText = data.lowestStudent;
+          document.getElementById('dash-total-month').innerText = data.totalLogsThisMonth;
+          renderCharts(data.chart1, data.chart2);
+        })
+        .withFailureHandler(errorHandler)
+        .getDashboardData();
+    }
+
+    function renderCharts(c1, c2) {
+      if(chart1Instance) chart1Instance.destroy();
+      if(chart2Instance) chart2Instance.destroy();
+
+      const ctx1 = document.getElementById('chartBehaviors').getContext('2d');
+      chart1Instance = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: c1.labels,
+          datasets: [{ label: 'จำนวนครั้ง', data: c1.data, backgroundColor: '#EC4899' }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+
+      const ctx2 = document.getElementById('chartClasses').getContext('2d');
+      chart2Instance = new Chart(ctx2, {
+        type: 'pie',
+        data: {
+          labels: c2.labels,
+          datasets: [{ data: c2.data, backgroundColor: ['#3B82F6', '#EC4899', '#FBBF24', '#A855F7', '#10B981'] }]
+        }
+      });
+    }
+
+    function loadBehaviors() {
+      switchSubView('sub-behaviors', 'menu-behaviors');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(data => {
+          hideLoading();
+          cache.behaviors = data;
+          let html = '';
+          data.forEach((row, i) => {
+            html += `<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+              <td class="p-4">${i+1}</td>
+              <td class="p-4">${row[1]}</td>
+              <td class="p-4 text-red-500 font-semibold">-${row[2]}</td>
+              <td class="p-4 text-center space-x-2">
+                <button onclick="openBehaviorModal('${row[0]}','${row[1]}',${row[2]})" class="text-blue-500 hover:text-blue-700"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteBehavior('${row[0]}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>`;
+          });
+          document.getElementById('table-behaviors-body').innerHTML = html || '<tr><td colspan="4" class="text-center p-4">ไม่พบข้อมูล</td></tr>';
+        })
+        .withFailureHandler(errorHandler)
+        .getBehaviors();
+    }
+
+    function openBehaviorModal(id='', name='', points='') {
+      document.getElementById('modal-behavior-id').value = id;
+      document.getElementById('modal-behavior-name').value = name;
+      document.getElementById('modal-behavior-points').value = points;
+      document.getElementById('modal-behavior-title').innerText = id ? "แก้ไขข้อมูลพฤติกรรม" : "เพิ่มพฤติกรรม";
+      document.getElementById('modal-behavior').classList.remove('hidden');
+    }
+    function closeBehaviorModal() { document.getElementById('modal-behavior').classList.add('hidden'); }
+    
+    function submitBehavior() {
+      const id = document.getElementById('modal-behavior-id').value;
+      const name = document.getElementById('modal-behavior-name').value;
+      const pts = document.getElementById('modal-behavior-points').value;
+      if(!name || !pts) return alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(() => { closeBehaviorModal(); loadBehaviors(); })
+        .withFailureHandler(errorHandler)
+        .saveBehavior(id, name, pts);
+    }
+
+    function deleteBehavior(id) {
+      if(!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบไอเทมนี้?')) return;
+      showLoading();
+      google.script.run
+        .withSuccessHandler(() => loadBehaviors())
+        .withFailureHandler(errorHandler)
+        .deleteBehavior(id);
+    }
+
+    function loadClasses() {
+      switchSubView('sub-classes', 'menu-classes');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(data => {
+          hideLoading();
+          cache.classes = data;
+          let html = '';
+          data.forEach((row, i) => {
+            html += `<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+              <td class="p-4">${i+1}</td>
+              <td class="p-4">${row[1]}</td>
+              <td class="p-4 text-center space-x-2">
+                <button onclick="openClassModal('${row[0]}','${row[1]}')" class="text-blue-500 hover:text-blue-700"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteClass('${row[0]}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>`;
+          });
+          document.getElementById('table-classes-body').innerHTML = html || '<tr><td colspan="3" class="text-center p-4">ไม่พบข้อมูล</td></tr>';
+        })
+        .withFailureHandler(errorHandler)
+        .getClasses();
+    }
+
+    function openClassModal(id='', name='') {
+      document.getElementById('modal-class-id').value = id;
+      document.getElementById('modal-class-name').value = name;
+      document.getElementById('modal-class-title').innerText = id ? "แก้ไขข้อมูลชั้นเรียน" : "เพิ่มชั้นเรียน";
+      document.getElementById('modal-class').classList.remove('hidden');
+    }
+    function closeClassModal() { document.getElementById('modal-class').classList.add('hidden'); }
+    
+    function submitClass() {
+      const id = document.getElementById('modal-class-id').value;
+      const name = document.getElementById('modal-class-name').value;
+      if(!name) return alert('กรุณาระบุชื่อชั้นเรียน');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(() => { closeClassModal(); loadClasses(); })
+        .withFailureHandler(errorHandler)
+        .saveClass(id, name);
+    }
+
+    function deleteClass(id) {
+      if(!confirm('คุณแน่ใจว่าต้องการลบชั้นเรียนนี้?')) return;
+      showLoading();
+      google.script.run
+        .withSuccessHandler(() => loadClasses())
+        .withFailureHandler(errorHandler)
+        .deleteClass(id);
+    }
+
+    function loadStudents() {
+      switchSubView('sub-students', 'menu-students');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(data => {
+          hideLoading();
+          cache.students = data;
+          let html = '';
+          data.forEach((row, i) => {
+            html += `<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+              <td class="p-4">${i+1}</td>
+              <td class="p-4">${row[0]}</td>
+              <td class="p-4 font-semibold">${row[1]}</td>
+              <td class="p-4">${row[2]}</td>
+              <td class="p-4 text-center space-x-2">
+                <button onclick="openStudentModal('${row[0]}','${row[1]}','${row[2]}')" class="text-blue-500 hover:text-blue-700"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteStudent('${row[0]}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>`;
+          });
+          document.getElementById('table-students-body').innerHTML = html || '<tr><td colspan="5" class="text-center p-4">ไม่พบข้อมูล</td></tr>';
+        })
+        .withFailureHandler(errorHandler)
+        .getStudents();
+    }
+
+    function openStudentModal(id='', name='', className='') {
+      const select = document.getElementById('modal-student-class');
+      select.innerHTML = '';
+      cache.classes.forEach(c => { select.innerHTML += `<option value="${c[1]}">${c[1]}</option>`; });
+      
+      document.getElementById('modal-student-id').value = id;
+      document.getElementById('modal-student-name').value = name;
+      if(className) select.value = className;
+      
+      document.getElementById('modal-student-id').disabled = id ? true : false;
+      document.getElementById('modal-student-title').innerText = id ? "แก้ไขข้อมูลนักเรียน" : "เพิ่มนักเรียน";
+      document.getElementById('modal-student').classList.remove('hidden');
+    }
+    
+    function closeStudentModal() { document.getElementById('modal-student').classList.add('hidden'); }
+
+    function submitStudent() {
+      const id = document.getElementById('modal-student-id').value;
+      const name = document.getElementById('modal-student-name').value;
+      const cls = document.getElementById('modal-student-class').value;
+      if(!id || !name || !cls) return alert('กรุณากรอกข้อมูลนักเรียนให้ครบถ้วน');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(() => { closeStudentModal(); loadStudents(); })
+        .withFailureHandler(errorHandler)
+        .saveStudent(id, name, cls);
+    }
+
+    function deleteStudent(id) {
+      if(!confirm('คุณแน่ใจว่าต้องการลบนักเรียนคนนี้ออกจากระบบ?')) return;
+      showLoading();
+      google.script.run
+        .withSuccessHandler(() => loadStudents())
+        .withFailureHandler(errorHandler)
+        .deleteStudent(id);
+    }
+
+    function loadRecordBehavior() {
+      switchSubView('sub-record', 'menu-record');
+      showLoading();
+      google.script.run.withSuccessHandler(data => {
+        hideLoading();
+        cache.students = data;
+        
+        const filterSelect = document.getElementById('filter-record-class');
+        filterSelect.innerHTML = '<option value="ทั้งหมด">ทุกชั้นเรียน</option>';
+        cache.classes.forEach(c => { filterSelect.innerHTML += `<option value="${c[1]}">${c[1]}</option>`; });
+        
+        renderRecordTable();
+      }).getStudents();
+    }
+
+    function renderRecordTable() {
+      const clsVal = document.getElementById('filter-record-class').value;
+      let html = '';
+      let index = 1;
+      
+      cache.students.forEach(st => {
+        if(clsVal !== 'ทั้งหมด' && st[2] !== clsVal) return;
+        
+        html += `<tr class="border-b hover:bg-gray-50/50">
+          <td class="p-4">${index++}</td>
+          <td class="p-4">${st[0]}</td>
+          <td class="p-4 font-semibold text-blue-600 cursor-pointer hover:underline" onclick="openHistoryModal('${st[0]}','${st[1]}')">${st[1]}</td>
+          <td class="p-4">${st[2]}</td>
+          <td class="p-4 text-center">
+            <button onclick="openCutPointsModal('${st[0]}','${st[1]}')" class="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-600"><i class="fa-solid fa-gavel"></i> ตัดคะแนน</button>
+          </td>
+        </tr>`;
+      });
+      document.getElementById('table-record-body').innerHTML = html || '<tr><td colspan="5" class="text-center p-4">ไม่มีรายชื่อนักเรียนในชั้นนี้</td></tr>';
+    }
+
+    function openCutPointsModal(id, name) {
+      document.getElementById('cut-student-id').value = id;
+      document.getElementById('cut-student-display').innerText = `${name} (${id})`;
+      
+      const select = document.getElementById('cut-behavior-select');
+      select.innerHTML = '';
+      cache.behaviors.forEach(b => {
+        select.innerHTML += `<option value="${b[1]}|${b[2]}">${b[1]} (-${b[2]} คะแนน)</option>`;
+      });
+      document.getElementById('modal-cut-points').classList.remove('hidden');
+    }
+    function closeCutPointsModal() { document.getElementById('modal-cut-points').classList.add('hidden'); }
+
+    function submitCutPoints() {
+      const id = document.getElementById('cut-student-id').value;
+      const bRaw = document.getElementById('cut-behavior-select').value;
+      if(!bRaw) return alert('กรุณาเลือกรูปแบบพฤติกรรมความผิด');
+      
+      const [bName, bPoints] = bRaw.split('|');
+      showLoading();
+      google.script.run
+        .withSuccessHandler(msg => {
+          closeCutPointsModal();
+          alert(msg);
+          renderRecordTable();
+        })
+        .withFailureHandler(errorHandler)
+        .addBehaviorLog(id, bName, bPoints);
+    }
+
+    function openHistoryModal(id, name) {
+      document.getElementById('history-student-info').innerText = `นักเรียน: ${name} (รหัสประจำตัว: ${id})`;
+      document.getElementById('table-history-body').innerHTML = '<tr><td colspan="3" class="text-center p-3">กำลังค้นหาประวัติบันทึก...</td></tr>';
+      document.getElementById('modal-history').classList.remove('hidden');
+      
+      google.script.run.withSuccessHandler(logs => {
+        let html = '';
+        logs.forEach(l => {
+          html += `<tr class="border-b">
+            <td class="p-3 text-xs">${l[4]}</td>
+            <td class="p-3">${l[2]}</td>
+            <td class="p-3 text-red-500 font-bold">-${l[3]}</td>
+          </tr>`;
+        });
+        document.getElementById('table-history-body').innerHTML = html || '<tr><td colspan="3" class="text-center p-3 text-gray-400">ประวัติใสสะอาด (ไม่เคยถูกหักคะแนน)</td></tr>';
+      }).getStudentLogs(id);
+    }
+    function closeHistoryModal() { document.getElementById('modal-history').classList.add('hidden'); }
+
+    function loadReports() {
+      switchSubView('sub-reports', 'menu-reports');
+      showLoading();
+      google.script.run.withSuccessHandler(data => {
+        hideLoading();
+        cache.reports = data.reports;
+        
+        const filterSelect = document.getElementById('filter-report-class');
+        filterSelect.innerHTML = '<option value="ทั้งหมด">ทุกชั้นเรียน</option>';
+        data.classes.forEach(c => { filterSelect.innerHTML += `<option value="${c[1]}">${c[1]}</option>`; });
+        
+        renderReportTable();
+      }).getReportDataInit();
+    }
+
+    function renderReportTable() {
+      const search = document.getElementById('search-report-name').value.toLowerCase().trim();
+      const clsVal = document.getElementById('filter-report-class').value;
+      const statusVal = document.getElementById('filter-report-status').value;
+      
+      let html = '';
+      let index = 1;
+      
+      cache.reports.forEach(r => {
+        if(clsVal !== 'ทั้งหมด' && r.className !== clsVal) return;
+        if(statusVal !== 'ทั้งหมด' && r.status !== statusVal) return;
+        if(search && !r.name.toLowerCase().includes(search) && !r.id.includes(search)) return;
+        
+        let badgeColor = r.remaining < 50 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700';
+        
+        html += `<tr class="border-b hover:bg-gray-50/50">
+          <td class="p-4">${index++}</td>
+          <td class="p-4">${r.id}</td>
+          <td class="p-4 font-semibold">${r.name}</td>
+          <td class="p-4">${r.className}</td>
+          <td class="p-4 text-center text-gray-400">100</td>
+          <td class="p-4 text-center text-red-500 font-bold">-${r.deducted}</td>
+          <td class="p-4 text-center font-bold text-blue-600">${r.remaining}</td>
+          <td class="p-4 text-xs text-gray-500">${r.lastDate}</td>
+          <td class="p-4 text-center"><span class="px-2.5 py-1 rounded-full text-xs font-bold ${badgeColor}">${r.status}</span></td>
+          <td class="p-4 text-center">
+            <button onclick="prepareAndPrintPDF('${r.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs"><i class="fa-solid fa-print"></i> พิมพ์ใบรายงาน</button>
+          </td>
+        </tr>`;
+      });
+      document.getElementById('table-reports-body').innerHTML = html || '<tr><td colspan="10" class="text-center p-4">ไม่พบรายการรายงานที่ค้นหา</td></tr>';
+    }
+
+    function prepareAndPrintPDF(studentId) {
+      const student = cache.reports.find(r => r.id === studentId);
+      if(!student) return;
+
+      document.getElementById("pdfName").innerText = student.name;
+      document.getElementById("pdfId").innerText = student.id;
+      document.getElementById("pdfClass").innerText = student.className;
+      document.getElementById("pdfRemaining").innerText = student.remaining;
+      document.getElementById("pdfStatus").innerText = student.remaining < 50 ? "เฝ้าระวังพฤติกรรมเสี่ยงเสื่อมเสีย" : "ความประพฤติปกติ";
+
+      const pdfTable = document.getElementById("pdfLogTableBody");
+      pdfTable.innerHTML = `<tr><td colspan="4" class="text-center p-4">กำลังดึงข้อมูลฐานความผิด...</td></tr>`;
+
+      google.script.run.withSuccessHandler(function(logs) {
+        if(logs.length === 0) {
+          pdfTable.innerHTML = `<tr><td colspan="4" class="text-center p-3 text-gray-400">ประวัติขาวสะอาด ไม่เคยผ่านบันทึกการกระทำความผิดพฤติกรรม</td></tr>`;
+        } else {
+          pdfTable.innerHTML = "";
+          logs.forEach((log, idx) => {
+            pdfTable.innerHTML += `<tr>
+              <td class="border border-gray-400 p-2 text-center">${idx + 1}</td>
+              <td class="border border-gray-400 p-2 text-center">${log[4]}</td>
+              <td class="border border-gray-400 p-2">${log[2]}</td>
+              <td class="border border-gray-400 p-2 text-center text-red-600 font-bold">-${log[3]}</td>
+            </tr>`;
+          });
+        }
+        // เรียกคำสั่งพิมพ์ของหน้าต่างเบราว์เซอร์
+        window.print();
+      }).getStudentLogs(studentId);
+    }
+  </script>
+</body>
+</html>
